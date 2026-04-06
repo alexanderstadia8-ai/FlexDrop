@@ -1,11 +1,11 @@
 'use client'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useAuthState } from 'react-firebase-hooks/auth'
 import { auth } from '@/lib/firebase'
 
-export default function SuccessPage() {
+function SuccessContent() {
   const params = useSearchParams()
   const amount = params.get('amount')
   const currency = params.get('currency')
@@ -17,7 +17,7 @@ export default function SuccessPage() {
   const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://flexdrop.io'
   const shareUrl = appUrl
 
-  const wish = '' // will be fetched if needed
+  const wish = '' 
   const name = user?.displayName ?? 'Someone'
 
   const ogUrl = `${appUrl}/api/og?name=${encodeURIComponent(name)}&amount=${amount}&currency=${currency}&type=drop`
@@ -49,7 +49,6 @@ export default function SuccessPage() {
   }
 
   const shareInstagram = async () => {
-    // Copy text to clipboard then download image
     await navigator.clipboard.writeText(`I just flexed ${currency} ${amount} on FlexDrop 🔥 Think you can outflex me? Prove it. flexdrop.io`)
     await downloadCard()
   }
@@ -132,5 +131,13 @@ export default function SuccessPage() {
 
       </div>
     </main>
+  )
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={<div style={{background:'#0a0a0a',minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}}>Loading...</div>}>
+      <SuccessContent />
+    </Suspense>
   )
 }

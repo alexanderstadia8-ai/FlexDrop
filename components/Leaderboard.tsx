@@ -31,7 +31,8 @@ function Avatar({ donor, size, onClick }: { donor: Donor; size: number; onClick?
     return <Image src={donor.photoURL} alt={donor.displayName} width={size} height={size} style={style} onClick={onClick} />
   }
   const colors = ['#D85A30','#534AB7','#0F6E56','#185FA5','#993C1D','#3B6D11']
-  const bg = colors[donor.displayName?.charCodeAt(0) % colors.length ?? 0]
+  const charCode = donor.displayName ? donor.displayName.charCodeAt(0) : 0;
+  const bg = colors[charCode % colors.length];
   const initials = donor.displayName?.split(' ').map((w:string)=>w[0]).join('').slice(0,2) ?? '??'
   return (
     <div onClick={onClick} style={{...style,background:bg,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontWeight:500,fontSize:size*0.33}}>
