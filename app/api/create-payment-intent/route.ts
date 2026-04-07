@@ -7,30 +7,32 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Verifica che la chiave esista
     if (!process.env.STRIPE_SECRET_KEY) {
-      console.error('❌ STRIPE_SECRET_KEY non trovata nelle variabili d\'ambiente di Vercel');
-      return NextResponse.json({ error: 'Server configuration error: Missing Stripe Key' }, { status: 500 });
+      return NextResponse.json({ error: 'Stripe key missing' }, { status: 500 });
     }
 
     const { amount, currency, uid } = await req.json();
 
     if (!amount || !currency || !uid) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
     }
 
-    // 2. Costruisci l'URL base dinamicamente dall'header della richiesta
-    const origin = req.headers.get('origin') || 'https://flexdrop.io'; // Fallback sicuro
+    // SOLUZIONE: Prendi l'host dalla richiesta e forza https://
+    // Vercel fornisce sempre l'header 'host' (es: flexdropv12-....vercel.app)
+    const host = req.headers.get('host');
     
-    // Assicurati che l'URL abbia lo schema https
-    const baseUrl = origin.startsWith('http') ? origin : `https://${origin}`;
-    
+    if (!host) {
+      throw new Error('Host header missing');
+    }
+
+    // Costruisci l'URL base forzando https (sicuro su Vercel)
+    const baseUrl = `https://${host}`;
+
     const successUrl = `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}&amount=${amount}&currency=${currency}&uid=${uid}`;
     const cancelUrl = `${baseUrl}/donate`;
 
-    console.log('🚀 Creazione sessione Stripe:', { amount, currency, successUrl });
+    console.log('Creating session for:', baseUrl);
 
-    // 3. Crea la sessione
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -41,7 +43,7 @@ export async function POST(req: NextRequest) {
               name: 'FlexDrop Donation',
               description: `Donation of ${currency} ${amount}`,
             },
-            unit_amount: Math.round(amount * 100), // Stripe usa i centesimi
+            unit_amount: Math.round(amount * 100),
           },
           quantity: 1,
         },
@@ -59,10 +61,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sessionId: session.id });
 
   } catch (error: any) {
-    // 4. Logga l'errore specifico per vederlo nei log di Vercel
-    console.error('💥 Errore Stripe dettagliato:', error);
+    console.error('Stripe Error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to create checkout session' }, 
+      { error: error.message || 'Failed to create session' }, 
       { status: 500 }
     );
   }
