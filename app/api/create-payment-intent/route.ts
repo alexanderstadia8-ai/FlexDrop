@@ -9,15 +9,14 @@ export async function POST(req: NextRequest) {
   try {
     const { amount, currency, uid } = await req.json();
 
-    if (!amount || !currency || !uid) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
-
-    // Costruisci l'URL base in modo sicuro per Vercel
-    // Usa una variabile d'ambiente NEXT_PUBLIC_APP_URL se impostata, altrimenti fallback su un dominio hardcoded o headers
-    const protocol = 'https';
-    const host = process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, '') || 'flexdropv12-1yo5pslxn-alexanderstadia8-ais-projects.vercel.app';
-    const baseUrl = `${protocol}://${host}`;
+    // Recupera il dominio dal header della richiesta (funziona sia in locale che su Vercel)
+    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'https://flexdrop.io';
+    
+    // Assicurati che l'URL abbia lo schema https
+    const baseUrl = origin.startsWith('http') ? origin : `https://${origin}`;
+    
+    const successUrl = `${baseUrl}/success?amount=${amount}&currency=${currency}&uid=${uid}`;
+    const cancelUrl = `${baseUrl}/donate`;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -26,8 +25,8 @@ export async function POST(req: NextRequest) {
           price_data: {
             currency: currency.toLowerCase(),
             product_data: {
-              name: `FlexDrop Donation`,
-              description: `Donation of ${currency} ${amount}`,
+              name: 'FlexDrop Donation',
+              description: `Donation of ${amount} ${currency}`,
             },
             unit_amount: Math.round(amount * 100), // Stripe vuole i centesimi
           },
@@ -35,8 +34,8 @@ export async function POST(req: NextRequest) {
         },
       ],
       mode: 'payment',
-      success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}&amount=${amount}&currency=${currency}&uid=${uid}`,
-      cancel_url: `${baseUrl}/donate?canceled=true`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: {
         uid,
         amount: amount.toString(),
@@ -45,8 +44,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ sessionId: session.id });
-  } catch (err: any) {
-    console.error('Stripe error:', err);
-    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Stripe error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
