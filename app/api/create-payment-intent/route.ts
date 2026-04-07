@@ -17,21 +17,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
     }
 
-    // SOLUZIONE: Prendi l'host dalla richiesta e forza https://
-    // Vercel fornisce sempre l'header 'host' (es: flexdropv12-....vercel.app)
-    const host = req.headers.get('host');
+    // SOLUZIONE ROBUSTA: Usa VERCEL_URL se disponibile, altrimenti fallback su host
+    let baseUrl = '';
     
-    if (!host) {
-      throw new Error('Host header missing');
+    // 1. Prova a prendere l'URL di produzione/preview da Vercel
+    const vercelUrl = process.env.VERCEL_URL; 
+    if (vercelUrl) {
+      baseUrl = `https://${vercelUrl}`;
+    } else {
+      // 2. Fallback sull'header host
+      const host = req.headers.get('host');
+      if (host) {
+        baseUrl = `https://${host}`;
+      } else {
+        throw new Error('Impossibile determinare l\'URL base');
+      }
     }
-
-    // Costruisci l'URL base forzando https (sicuro su Vercel)
-    const baseUrl = `https://${host}`;
 
     const successUrl = `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}&amount=${amount}&currency=${currency}&uid=${uid}`;
     const cancelUrl = `${baseUrl}/donate`;
 
-    console.log('Creating session for:', baseUrl);
+    console.log('✅ URL generati:', { successUrl, cancelUrl });
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -61,7 +67,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sessionId: session.id });
 
   } catch (error: any) {
-    console.error('Stripe Error:', error);
+    console.error('❌ Stripe Error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to create session' }, 
       { status: 500 }
