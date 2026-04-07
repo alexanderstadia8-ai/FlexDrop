@@ -11,7 +11,9 @@ import { auth, googleProvider, db, storage } from '@/lib/firebase'
 import { CURRENCIES, toEUR } from '@/lib/currencies'
 import Navbar from '@/components/Navbar'
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+// Caricamento sicuro della chiave pubblica
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')
+
 const SUGGESTED = [10, 25, 50, 100, 250, 500]
 
 const COUNTRIES = [
@@ -141,7 +143,10 @@ export default function DonatePage() {
   }, [user])
 
   const login = async () => {
-    try { await signInWithPopup(auth, googleProvider) } catch(e) {}
+    try { await signInWithPopup(auth, googleProvider) } catch(e) {
+      console.error("Login error:", e)
+      setError("Failed to sign in. Check popup blockers.")
+    }
   }
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,6 +185,7 @@ export default function DonatePage() {
       setProfile(profileData)
       setStep(2)
     } catch(e) {
+      console.error("Profile save error:", e)
       setError('Something went wrong saving your profile.')
     } finally {
       setLoading(false)
@@ -189,6 +195,13 @@ export default function DonatePage() {
   const handleCheckout = async () => {
     if (!user) return
     if (!wish.trim()) { setError('Write your message!'); return }
+    
+    // Controllo preventivo della chiave Stripe
+    if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
+      setError('Stripe configuration missing. Please contact support.')
+      return
+    }
+
     setError('')
     setLoading(true)
     try {
@@ -217,12 +230,31 @@ export default function DonatePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount, currency, uid: user.uid }),
       })
-      const { sessionId } = await res.json()
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create session')
+      }
+
+      if (!data.sessionId) {
+        throw new Error('No session ID returned from server')
+      }
+
       const stripe = await stripePromise
-      await stripe?.redirectToCheckout({ sessionId })
-    } catch(e) {
-      console.error(e)
-      setError('Something went wrong. Please try again.')
+      if (!stripe) {
+        throw new Error('Stripe failed to initialize')
+      }
+
+      const result = await stripe.redirectToCheckout({ sessionId: data.sessionId })
+      
+      if (result.error) {
+        throw new Error(result.error.message)
+      }
+
+    } catch(e: any) {
+      console.error("Checkout error:", e)
+      setError(e.message || 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
