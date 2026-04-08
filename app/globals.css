@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{
+  background:#0a0a0a;
+  color:#fff;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+}
+
+input,textarea,select,button{font-family:inherit;}
+
+/* Mobile first */
+@media(max-width:768px){
+  .two-col{grid-template-columns:1fr!important;}
+  .hide-mobile{display:none!important;}
+}
+
+@media(min-width:769px){
+  .hide-desktop{display:none!important;}
+}
