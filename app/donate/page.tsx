@@ -1,12 +1,27 @@
+// app/donate/page.tsx
+'use client'
+
+import { useState } from 'react'
+import { db } from '@/lib/firebase'
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { stripePromise, toEUR, COUNTRIES } from '@/lib/utils'
+
+export default function DonatePage({ user }: { user: any }) {
+  const [wish, setWish] = useState('')
+  const [amount, setAmount] = useState(0)
+  const [currency, setCurrency] = useState('USD')
+  const [country, setCountry] = useState('US')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
   const handleCheckout = async () => {
     if (!user) return
     if (!wish.trim()) { setError('Write your message!'); return }
-    
+
     setError('')
     setLoading(true)
 
     try {
-      // 1. Salva i dati pending su Firestore
       const countryData = COUNTRIES.find(c => c.code === country)
       const profileSnap = await getDoc(doc(db, 'user_profiles', user.uid))
       const savedProfile = profileSnap.exists() ? profileSnap.data() : {}
@@ -27,8 +42,6 @@
         updatedAt: serverTimestamp(),
       })
 
-      // 2. Chiama l'API per creare la sessione
-      console.log('🚀 Chiamata API per creare sessione...')
       const res = await fetch('/api/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -36,30 +49,15 @@
       })
 
       const data = await res.json()
-      console.log('📦 Risposta API:', data)
 
-      // 3. CONTROLLO CRITICO: Verifica se c'è un errore o se manca il sessionId
-      if (!res.ok) {
-        throw new Error(data.error || `Errore HTTP: ${res.status}`)
-      }
+      if (!res.ok) throw new Error(data.error || `Errore HTTP: ${res.status}`)
+      if (!data.sessionId) throw new Error('Impossibile creare la sessione di pagamento. Controlla le chiavi Stripe su Vercel.')
 
-      if (!data.sessionId) {
-        console.error('❌ ERRORE GRAVE: Il sessionId è mancante nella risposta:', data)
-        throw new Error('Impossibile creare la sessione di pagamento. Controlla le chiavi Stripe su Vercel.')
-      }
-
-      // 4. Esegui il redirect solo se abbiamo un sessionId valido
       const stripe = await stripePromise
-      if (!stripe) {
-        throw new Error('Stripe non è stato caricato correttamente.')
-      }
+      if (!stripe) throw new Error('Stripe non è stato caricato correttamente.')
 
-      console.log('✅ Redirect a Stripe con sessionId:', data.sessionId)
       const result = await stripe.redirectToCheckout({ sessionId: data.sessionId })
-
-      if (result.error) {
-        throw new Error(result.error.message)
-      }
+      if (result.error) throw new Error(result.error.message)
 
     } catch(e: any) {
       console.error('💥 Errore durante il checkout:', e)
@@ -68,3 +66,15 @@
       setLoading(false)
     }
   }
+
+  return (
+    <div>
+      <h1>Donate</h1>
+      <input value={wish} onChange={e => setWish(e.target.value)} placeholder="Your message" />
+      <button onClick={handleCheckout} disabled={loading}>
+        {loading ? 'Processing...' : 'Donate'}
+      </button>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+    </div>
+  )
+}
