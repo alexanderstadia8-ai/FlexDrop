@@ -1,14 +1,40 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import Leaderboard from '@/components/Leaderboard'
 import LiveTicker from '@/components/LiveTicker'
 import ChallengeBox from '@/components/ChallengeBox'
 import LiveBattles from '@/components/LiveBattles'
+import { collection, query, onSnapshot, where, Timestamp, orderBy, limit } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 export default function Home() {
   const [tab, setTab] = useState<'today' | 'alltime'>('today')
+  const [totalDropped, setTotalDropped] = useState<number>(0)
+  const [totalBallers, setTotalBallers] = useState<number>(0)
+  const [liveBattles, setLiveBattles] = useState<number>(14)
+
+  useEffect(() => {
+    // Fetch total dropped and ballers count from leaderboard_alltime
+    const q = query(collection(db, 'leaderboard_alltime'), orderBy('amountEUR', 'desc'))
+    const unsub = onSnapshot(q, (snap) => {
+      let total = 0
+      snap.docs.forEach(doc => {
+        const data = doc.data()
+        total += data.amountEUR || 0
+      })
+      setTotalDropped(total)
+      setTotalBallers(snap.size)
+    })
+    return () => unsub()
+  }, [])
+
+  const formatTotal = (val: number) => {
+    if (val >= 1000000) return `€${(val / 1000000).toFixed(1)}M`
+    if (val >= 1000) return `€${(val / 1000).toFixed(0)}k`
+    return `€${val}`
+  }
 
   return (
     <main style={{background:'#0a0a0a',minHeight:'100vh',color:'#fff'}}>
@@ -43,9 +69,9 @@ export default function Home() {
       <section style={{maxWidth:1100,margin:'0 auto 1.5rem',padding:'0 1.5rem'}}>
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
           {[
-            {val:'€142k',label:'Total dropped'},
-            {val:'1,247',label:'Ballers'},
-            {val:'14',label:'Live battles'},
+            {val:formatTotal(totalDropped),label:'Total dropped'},
+            {val:totalBallers.toLocaleString(),label:'Ballers'},
+            {val:liveBattles.toLocaleString(),label:'Live battles'},
           ].map(s=>(
             <div key={s.label} style={{background:'#111',border:'1px solid #222',borderRadius:12,padding:'14px',textAlign:'center'}}>
               <div style={{fontSize:'clamp(18px,3vw,24px)',fontWeight:500,color:'#FFD700'}}>{s.val}</div>
