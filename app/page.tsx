@@ -1,14 +1,47 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import Leaderboard from '@/components/Leaderboard'
 import LiveTicker from '@/components/LiveTicker'
 import ChallengeBox from '@/components/ChallengeBox'
 import LiveBattles from '@/components/LiveBattles'
+import { collection, query, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 export default function Home() {
   const [tab, setTab] = useState<'today' | 'alltime'>('today')
+  const [totalDropped, setTotalDropped] = useState<number>(0)
+  const [totalDonors, setTotalDonors] = useState<number>(0)
+
+  useEffect(() => {
+    // Fetch total dropped and total donors from leaderboard_alltime
+    const q = query(collection(db, 'leaderboard_alltime'))
+    const unsub = onSnapshot(q, (snap) => {
+      let total = 0
+      snap.forEach((doc) => {
+        const data = doc.data()
+        total += data.amountEUR || 0
+      })
+      setTotalDropped(total)
+      setTotalDonors(snap.size)
+    })
+    return () => unsub()
+  }, [])
+
+  const formatCurrency = (amount: number) => {
+    if (amount >= 1000000) {
+      return '€' + (amount / 1000000).toFixed(1) + 'M'
+    } else if (amount >= 1000) {
+      return '€' + (amount / 1000).toFixed(0) + 'k'
+    } else {
+      return '€' + amount.toFixed(0)
+    }
+  }
+
+  const formatNumber = (num: number) => {
+    return num.toLocaleString()
+  }
 
   return (
     <main style={{background:'#0a0a0a',minHeight:'100vh',color:'#fff'}}>
@@ -43,8 +76,8 @@ export default function Home() {
       <section style={{maxWidth:1100,margin:'0 auto 1.5rem',padding:'0 1.5rem'}}>
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
           {[
-            {val:'€142k',label:'Total dropped'},
-            {val:'1,247',label:'Ballers'},
+            {val: formatCurrency(totalDropped), label:'Total dropped'},
+            {val: formatNumber(totalDonors), label:'Ballers'},
             {val:'14',label:'Live battles'},
           ].map(s=>(
             <div key={s.label} style={{background:'#111',border:'1px solid #222',borderRadius:12,padding:'14px',textAlign:'center'}}>
